@@ -1,4 +1,0 @@
-hello
-he|llo
-HELLO
-world
