@@ -19,6 +19,56 @@ package main
 Программа должна проходить все тесты. Код должен проходить проверки go vet и golint.
 */
 
-func main() {
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"unsafe"
+)
 
+func FindAnagrams(words []string) map[string][]string {
+	wordToAnagrams := make(map[string][]string)
+	sortedWordToKey := make(map[string]string)
+	wordsMet := make(map[string]struct{})
+
+	for i := 0; i < len(words); i++ {
+		words[i] = strings.ToLower(words[i])
+	}
+	sort.Strings(words)
+
+	fmt.Println(words)
+
+	for _, word := range words {
+
+		runes := strings.Split(word, "")
+		sort.Strings(runes)
+		sortedString := strings.Join(runes, "")
+
+		key, ok := sortedWordToKey[sortedString]
+		if !ok {
+			key = word
+			sortedWordToKey[sortedString] = word
+		}
+
+		_, ok = wordsMet[word]
+		if !ok {
+			wordToAnagrams[key] = append(wordToAnagrams[key], word)
+			wordsMet[word] = struct{}{}
+		}
+	}
+
+	for k, v := range wordToAnagrams {
+		if len(v) < 2 {
+			delete(wordToAnagrams, k)
+		}
+	}
+
+	return wordToAnagrams
+}
+
+func main() {
+	words := []string{"пятак", "пятка", "тяпка", "а"}
+	result := FindAnagrams(words)
+	fmt.Println(result)
+	fmt.Println(unsafe.Sizeof(result))
 }
