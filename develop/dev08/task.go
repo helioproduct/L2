@@ -14,6 +14,12 @@ package main
 Программа должна проходить все тесты. Код должен проходить проверки go vet и golint.
 */
 
-func main() {
+func getValue() *int {
+	x := 4
+	return &x
+}
 
+func main() {
+	x := getValue()
+	println(*x / 2)
 }
