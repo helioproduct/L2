@@ -12,27 +12,70 @@ package main
 var or func(channels ...<- chan interface{}) <- chan interface{}
 
 Пример использования функции:
-sig := func(after time.Duration) <- chan interface{} {
-	c := make(chan interface{})
-	go func() {
-		defer close(c)
-		time.Sleep(after)
-}()
+
+	sig := func(after time.Duration) <- chan interface{} {
+		c := make(chan interface{})
+		go func() {
+			defer close(c)
+			time.Sleep(after)
+	}()
+
 return c
 }
 
 start := time.Now()
 <-or (
+
 	sig(2*time.Hour),
 	sig(5*time.Minute),
 	sig(1*time.Second),
 	sig(1*time.Hour),
 	sig(1*time.Minute),
+
 )
 
 fmt.Printf(“fone after %v”, time.Since(start))
 */
 
+import "time"
+import "fmt"
+import "sync"
+
+func or(channels ...<-chan interface{}) <-chan interface{} {
+	var wg sync.WaitGroup
+	orChan := make(chan interface{})
+
+	wg.Add(len(channels))
+	for _, c := range channels {
+		go func(c <-chan interface{}) {
+			defer wg.Done()
+			// блокируемся на чтении
+			<-c
+		}(c)
+	}
+	wg.Wait()
+	close(orChan)
+	return orChan
+}
+
 func main() {
+	sig := func(after time.Duration) <-chan interface{} {
+		c := make(chan interface{})
+		go func() {
+			defer close(c)
+			time.Sleep(after)
+		}()
+		return c
+	}
+
+	start := time.Now()
+	<-or(
+		sig(1*time.Second),
+		sig(2*time.Second),
+		sig(3*time.Second),
+		// sig(4*time.Second),
+	)
+
+	fmt.Printf("Time left %v", time.Since(start))
 
 }
