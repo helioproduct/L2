@@ -1,0 +1,6 @@
+github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 h1:DklsrG3dyBCFEj5IhUbnKptjxatkF07cF2ak3yi77so=
+github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2/go.mod h1:WaHUgvxTVq04UNunO+XhnAqY/wQc+bxr74GqbsZ/Jqw=
+github.com/davidmytton/url-verifier v1.0.1 h1:eTSdMo5v0HtvrFObYInmt/WTmy5Izlh5gAa0AtrUzKc=
+github.com/davidmytton/url-verifier v1.0.1/go.mod h1:kha47HNj0Zg0cozShEaIEPmT3nn7c8N1TGnh8U2B4jc=
+golang.org/x/net v0.27.0 h1:5K3Njcw06/l2y9vpGCSdcxWOYHOUk3dVNGDXN+FvAys=
+golang.org/x/net v0.27.0/go.mod h1:dDi0PyhWNoiUOrAS8uXv/vnScO4wnHQO4mj9fn/RytE=
