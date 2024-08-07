@@ -62,8 +62,8 @@ type Card struct {
 
 func (card Card) CheckBalance() error {
 	println("[Card] запрос в банк для проверки остатка")
-	card.Bank.CheckBalance(card.Name)
 	time.Sleep(time.Millisecond * 800)
+	return card.Bank.CheckBalance(card.Name)
 }
 
 type Bank struct {
@@ -84,6 +84,7 @@ func (bank Bank) CheckBalance(cardNumber string) error {
 		}
 	}
 	println("[Bank] Остаток положительный")
+	return nil
 }
 
 type User struct {
