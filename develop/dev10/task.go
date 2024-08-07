@@ -1,147 +1,109 @@
 package main
 
 import (
+	"dev11/endpoints"
+	"dev11/logic"
+	"dev11/middleware"
+	"dev11/models"
 	"flag"
 	"fmt"
-	"io"
 	"log"
-	"net"
-	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
-	"time"
+	"net/http"
 )
 
 /*
-=== Утилита telnet ===
+=== HTTP server ===
 
-Реализовать простейший telnet-клиент.
+Реализовать HTTP сервер для работы с календарем. В рамках задания необходимо работать строго со стандартной HTTP библиотекой.
+В рамках задания необходимо:
+	1. Реализовать вспомогательные функции для сериализации объектов доменной области в JSON.
+	2. Реализовать вспомогательные функции для парсинга и валидации параметров методов /create_event и /update_event.
+	3. Реализовать HTTP обработчики для каждого из методов API, используя вспомогательные функции и объекты доменной области.
+	4. Реализовать middleware для логирования запросов
+Методы API:
+	POST /create_event
+	POST /update_event
+	POST /delete_event
+	GET /events_for_day
+	GET /events_for_week
+	GET /events_for_month
+Параметры передаются в виде www-url-form-encoded (т.е. обычные user_id=3&date=2019-09-09).
+В GET методах параметры передаются через queryString, в POST через тело запроса.
+В результате каждого запроса должен возвращаться JSON документ содержащий либо {"result": "..."} в случае успешного выполнения метода,
+либо {"error": "..."} в случае ошибки бизнес-логики.
 
-Примеры вызовов:
-go-telnet --timeout=10s host port
-go-telnet mysite.ru 8080
-go-telnet --timeout=3s 1.1.1.1 123
-
-
-Требования:
-1. 	Программа должна подключаться к указанному хосту (ip или доменное имя + порт) по протоколу TCP.
-	После подключения STDIN программы должен записываться в сокет, а данные полученные и сокета должны выводиться в STDOUT
-
-2.	Опционально в программу можно передать таймаут на подключение к серверу (через аргумент --timeout, по умолчанию 10s)
-
-3.	При нажатии Ctrl+D программа должна закрывать сокет и завершаться.
-	Если сокет закрывается со стороны сервера, программа должна также завершаться.
-	При подключении к несуществующему сервер, программа должна завершаться через timeout.
+В рамках задачи необходимо:
+	1. Реализовать все методы.
+	2. Бизнес логика НЕ должна зависеть от кода HTTP сервера.
+	3.  В случае ошибки бизнес-логики сервер должен возвращать HTTP 503.
+		В случае ошибки входных данных (невалидный int например) сервер должен возвращать HTTP 400.
+		В случае остальных ошибок сервер должен возвращать HTTP 500.
+		Web-сервер должен запускаться на порту указанном в конфиге и выводить в лог каждый обработанный запрос.
+	4. Код должен проходить проверки go vet и golint.
 */
 
-/*
-go-telnet [OPTION...] <host> <port>
-
-Устанавливает tcp соединение с host:port
-
-OPTIONS
-		-timeout <duration> - устанавливает задержку в duration. (default 10s)
-			<duration> = <number><suffix>
-			<suffix> = ms|s|m
-			ms - миллисекунда
-			s - секунда
-			m - минута
-*/
-
-type Config struct {
-	Host    string
-	Port    int
-	Timeout time.Duration
+type muxBuilder struct {
+	mux *http.ServeMux
 }
 
-func parseConfig() *Config {
-	var cfg Config
+func NewMuxBuilder() *muxBuilder {
+	return &muxBuilder{
+		mux: http.NewServeMux(),
+	}
+}
 
-	flag.DurationVar(&cfg.Timeout, "timeout", 10*time.Second, "устанавливает максимальное время подключения.")
+func (m *muxBuilder) AddEventHTTP(e *endpoints.EventHTTP) {
+	m.mux.Handle("/create_event", middleware.WithMethod("POST", http.HandlerFunc(e.CreateHandle)))
+	m.mux.Handle("/update_event", middleware.WithMethod("POST", http.HandlerFunc(e.UpdateHandle)))
+	m.mux.Handle("/delete_event", middleware.WithMethod("POST", http.HandlerFunc(e.DeleteHandle)))
+
+	m.mux.Handle("/events_for_day", middleware.WithMethod("GET", http.HandlerFunc(e.ForDayHandle)))
+	m.mux.Handle("/events_for_week", middleware.WithMethod("GET", http.HandlerFunc(e.ForWeekHandle)))
+	m.mux.Handle("/events_for_month", middleware.WithMethod("GET", http.HandlerFunc(e.ForMonthHandle)))
+}
+
+func (m *muxBuilder) Build() http.Handler {
+	// Добавляем логирование запросов
+	withLogger := middleware.Logging(m.mux)
+	return withLogger
+}
+
+type config struct {
+	addr string
+}
+
+func parseConfig() *config {
+	host := flag.String("h", "127.0.0.1", "адрес, который будет прослушиваться")
+	port := flag.Int("p", 8080, "порт, на котором будет запущен http сервер")
 	flag.Parse()
-
-	// parse host port
-	args := flag.Args()
-	if len(args) != 2 {
-		flag.Usage()
-		log.Fatalln("len(args) != 2")
+	return &config{
+		addr: fmt.Sprintf("%s:%d", *host, *port),
 	}
-	cfg.Host = args[0]
-	var err error
-	cfg.Port, err = strconv.Atoi(args[1])
-	if err != nil {
-		flag.Usage()
-		log.Fatalln("port should be a number")
-	}
-	if cfg.Port < 1 || cfg.Port > 65535 {
-		flag.Usage()
-		log.Fatalln("port should be in [1, 65535]")
-	}
-
-	return &cfg
-}
-
-func echo(r io.Reader, w io.Writer) error {
-	_, err := io.Copy(w, r)
-	return err
-}
-
-func telnet(cfg *Config) error {
-	// notify sigint
-	fmt.Println(cfg)
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-
-	// Попытаемся установить соединение
-	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-	log.Printf("Trying %s...\n", addr)
-	conn, err := net.DialTimeout("tcp", addr, cfg.Timeout)
-	if err != nil {
-		return err
-	}
-	log.Printf("Connected to %s\n", addr)
-
-	senderDone := make(chan error)
-	receiverDone := make(chan error)
-
-	go func() {
-		senderDone <- echo(os.Stdin, conn)
-	}()
-
-	go func() {
-		receiverDone <- echo(conn, os.Stdout)
-	}()
-
-	select {
-	case err := <-receiverDone:
-		if err != nil {
-			fmt.Println("receiver err:", err)
-		}
-		close(receiverDone)
-	case err := <-senderDone:
-		if err != nil {
-			fmt.Println("sender err:", err)
-		}
-		close(senderDone)
-	case s := <-sig:
-		log.Println("receive os signal:", s.String())
-	}
-
-	conn.Close()
-	if _, ok := <-receiverDone; ok {
-		close(receiverDone)
-	}
-	if _, ok := <-senderDone; ok {
-		close(senderDone)
-	}
-
-	return nil
 }
 
 func main() {
+	// Получаем конфиги
 	cfg := parseConfig()
-	if err := telnet(cfg); err != nil {
-		log.Fatalln(err)
+
+	// Модель, позволяющая взаимодействовать с БД событий
+	eventModel := models.NewEventModelMemory()
+	// Слой бизнес-логики
+	eventApi := logic.NewEventAPI(eventModel)
+	// http ручки
+	eventHTTP := endpoints.NewEventHTTP(eventApi)
+	log.Println("eventHTTP ready")
+
+	// Строим мультиплексер
+	mb := NewMuxBuilder()
+	mb.AddEventHTTP(eventHTTP)
+	// Получаем его
+	mux := mb.Build()
+	log.Println("mux build")
+
+	// Настраиваем сервер
+	log.Printf("HTTP ListenAndServe: %s\n", cfg.addr)
+	err := http.ListenAndServe(cfg.addr, mux)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
