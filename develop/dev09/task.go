@@ -16,8 +16,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
-	// "strings"
+	// "path"
+	"path/filepath"
+	"strings"
 )
 
 // downloadFile downloads a file from the given URL and saves it to the specified path.
@@ -27,6 +28,10 @@ func downloadFile(url string, dest string) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download file: %s", resp.Status)
+	}
 
 	out, err := os.Create(dest)
 	if err != nil {
@@ -84,6 +89,10 @@ func createDirIfNotExist(dir string) error {
 	return nil
 }
 
+func sanitizeFileName(fileName string) string {
+	return strings.ReplaceAll(fileName, ":", "_")
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("No args provided")
@@ -112,13 +121,13 @@ func main() {
 	}
 
 	// Create a base directory for the website
-	baseDir := parsedURL.Host
+	baseDir := sanitizeFileName(parsedURL.Host)
 	if err := createDirIfNotExist(baseDir); err != nil {
 		log.Fatalf("Failed to create base directory: %v\n", err)
 	}
 
 	// Save the main HTML file
-	mainHTMLFile := path.Join(baseDir, "index.html")
+	mainHTMLFile := filepath.Join(baseDir, "index.html")
 	out, err := os.Create(mainHTMLFile)
 	if err != nil {
 		log.Fatalf("Failed to create main HTML file: %v\n", err)
@@ -150,8 +159,8 @@ func main() {
 		}
 
 		// Create directory structure for the resource
-		resourcePath := path.Join(baseDir, u.Path)
-		resourceDir := path.Dir(resourcePath)
+		resourcePath := filepath.Join(baseDir, u.Host, u.Path)
+		resourceDir := filepath.Dir(resourcePath)
 		if err := createDirIfNotExist(resourceDir); err != nil {
 			log.Printf("Failed to create directory for resource %s: %v\n", resURL, err)
 			continue
