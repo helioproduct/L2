@@ -2,78 +2,104 @@ package pattern
 
 /*
 	Реализовать паттерн «цепочка вызовов».
-Объяснить применимость паттерна, его плюсы и минусы, а также реальные примеры использования данного примера на практике.
+	Объяснить применимость паттерна, его плюсы и минусы,
+	а также реальные примеры использования данного примера на практике.
 	https://en.wikipedia.org/wiki/Chain-of-responsibility_pattern
 */
 
-// Плюсы: уменьшает зависимость между клиентами и обработчиками
+// Плюсы:
+// 		уменьшает зависимость между клиентами и обработчиками
+// 	    Реализует принцип единственной обязанности.
+// 		Реализует принцип открытости/закрытости.
+
+//  Минусы:
+// 		 Запрос может остаться никем не обработанным.
 
 import (
 	"fmt"
 )
 
-// Определяем интерфейс обработчика
-type Handler interface {
-	SetNext(handler Handler)
-	Handle(request string)
+// Интерфейс для обработчика
+type Doctor interface {
+	SetNext(doctor Doctor)
+	HandleRequest(complaint string)
 }
 
-// Базовый обработчик, который хранит следующий обработчик в цепочке
-type BaseHandler struct {
-	next Handler
+// Базовый обработчик, реализующий общий функционал для всех врачей
+type BaseDoctor struct {
+	next Doctor
 }
 
-func (h *BaseHandler) SetNext(handler Handler) {
-	h.next = handler
+func (d *BaseDoctor) SetNext(doctor Doctor) {
+	d.next = doctor
 }
 
-func (h *BaseHandler) Handle(request string) {
-	if h.next != nil {
-		h.next.Handle(request)
+func (d *BaseDoctor) HandleRequest(complaint string) {
+	if d.next != nil {
+		d.next.HandleRequest(complaint)
 	}
 }
 
-// Конкретный обработчик, который обрабатывает запрос
-type ConcreteHandlerA struct {
-	BaseHandler
+// Терапевт, конкретный обработчик
+type Therapist struct {
+	BaseDoctor
 }
 
-func (h *ConcreteHandlerA) Handle(request string) {
-	if request == "A" {
-		fmt.Println("Handler A обработал запрос")
+func (d *Therapist) HandleRequest(complaint string) {
+	if complaint == "простуда" {
+		fmt.Println("Терапевт лечит пациента с жалобой на простуду")
 	} else {
-		fmt.Println("Handler A передал запрос дальше")
-		h.BaseHandler.Handle(request)
+		fmt.Println("Терапевт передает запрос дальше")
+		d.BaseDoctor.HandleRequest(complaint)
 	}
 }
 
-// Еще один конкретный обработчик
-type ConcreteHandlerB struct {
-	BaseHandler
+// Хирург, конкретный обработчик
+type Surgeon struct {
+	BaseDoctor
 }
 
-func (h *ConcreteHandlerB) Handle(request string) {
-	if request == "B" {
-		fmt.Println("Handler B обработал запрос")
+func (d *Surgeon) HandleRequest(complaint string) {
+	if complaint == "аппендицит" {
+		fmt.Println("Хирург оперирует пациента с аппендицитом")
 	} else {
-		fmt.Println("Handler B передал запрос дальше")
-		h.BaseHandler.Handle(request)
+		fmt.Println("Хирург передает запрос дальше")
+		d.BaseDoctor.HandleRequest(complaint)
+	}
+}
+
+// Специалист, конкретный обработчик
+type Specialist struct {
+	BaseDoctor
+}
+
+func (d *Specialist) HandleRequest(complaint string) {
+	if complaint == "заболевание сердца" {
+		fmt.Println("Специалист лечит пациента с заболеванием сердца")
+	} else {
+		fmt.Println("Специалист не может помочь с данной жалобой")
+		d.BaseDoctor.HandleRequest(complaint)
 	}
 }
 
 func main() {
-	handlerA := &ConcreteHandlerA{}
-	handlerB := &ConcreteHandlerB{}
+	therapist := &Therapist{}
+	surgeon := &Surgeon{}
+	specialist := &Specialist{}
 
-	handlerA.SetNext(handlerB)
+	therapist.SetNext(surgeon)
+	surgeon.SetNext(specialist)
 
 	// Передаем запросы
-	fmt.Println("Передаем запрос 'A':")
-	handlerA.Handle("A")
+	fmt.Println("Пациент жалуется на простуду:")
+	therapist.HandleRequest("простуда")
 
-	fmt.Println("\nПередаем запрос 'B':")
-	handlerA.Handle("B")
+	fmt.Println("\nПациент жалуется на аппендицит:")
+	therapist.HandleRequest("аппендицит")
 
-	fmt.Println("\nПередаем запрос 'C':")
-	handlerA.Handle("C")
+	fmt.Println("\nПациент жалуется на заболевание сердца:")
+	therapist.HandleRequest("заболевание сердца")
+
+	fmt.Println("\nПациент жалуется на неизвестную проблему:")
+	therapist.HandleRequest("неизвестная проблема")
 }
